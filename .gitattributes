@@ -1,0 +1,13 @@
+* text=auto
+native/packaging/** linguist-documentation
+native/translations/** linguist-documentation
+*.yml text eol=lf
+*.md text eol=lf
+*.sh text eol=lf
+*.plist text eol=lf
+*.desktop text eol=lf
+*.rules text eol=lf
+*.rs text eol=lf
+*.slint text eol=lf
+*.toml text eol=lf
+Cargo.lock text eol=lf

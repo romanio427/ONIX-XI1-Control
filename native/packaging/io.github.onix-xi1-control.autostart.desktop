@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=ONIX DAC Control
+Comment=Control ONIX Alpha XI1 when connected
+Exec=/usr/bin/onix-xi1-pc --background
+TryExec=/usr/bin/onix-xi1-pc
+Terminal=false
+Hidden=false
+X-GNOME-Autostart-enabled=true

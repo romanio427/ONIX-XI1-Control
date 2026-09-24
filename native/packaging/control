@@ -1,0 +1,11 @@
+Package: onix-xi1-control
+Version: __VERSION__
+Section: sound
+Priority: optional
+Architecture: amd64
+Maintainer: romanio427
+Depends: libc6 (>= 2.35), libgcc-s1, libfontconfig1, libx11-6, libx11-xcb1, libxcb1, libxkbcommon0, libxkbcommon-x11-0, libgl1
+Recommends: xdg-desktop-portal (>= 1.16), xwayland
+Description: ONIX XI1 PC control
+ Sends volume and mode commands to the XI1 over USB.
+ Requires X11 or XWayland for the compact overlay.

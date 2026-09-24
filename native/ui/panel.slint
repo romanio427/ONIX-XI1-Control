@@ -1,0 +1,388 @@
+import { HorizontalBox, VerticalBox } from "std-widgets.slint";
+import "./fonts/Roboto-Medium.ttf";
+import "./fonts/Roboto-Bold.ttf";
+
+export component TranslationAnchor inherits Window {
+    width: 0px;
+    height: 0px;
+    no-frame: true;
+}
+
+component Card inherits Rectangle {
+    in property <string> label;
+    in property <string> value;
+    background: #232221;
+    height: 40px;
+    Text {
+        x: 6px; y: 4px; width: parent.width - 12px;
+        text: root.label; font-size: 8.5px; font-weight: 700; letter-spacing: 0.15px;
+        color: #d7b56d; horizontal-alignment: center;
+    }
+    Text { x: 0; y: 17px; width: parent.width; height: 20px;
+        text: "‹ " + root.value + " ›"; font-size: 12px; font-weight: 700; letter-spacing: 0.05px;
+        color: #f4f4f2; horizontal-alignment: center; vertical-alignment: center;
+    }
+}
+
+export component SettingsPanel inherits Window {
+    // Untranslated: platform.rs treats this title as the overlay flyout.
+    title: "ONIX XI1 Settings";
+    width: 192px; height: content-height + 12px;
+    property <length> inset: 8px;
+    property <length> gap: 8px;
+    property <length> card-height: 40px;
+    property <length> column-width: (root.width - 2 * inset - gap) / 2;
+    property <length> content-height: 2 * inset + 5 * card-height + 4 * gap;
+    no-frame: true; always-on-top: true; background: transparent;
+    default-font-family: "Roboto";
+    in property <bool> expanded: false;
+    in property <bool> connected: false;
+    in property <[string]> values: ["—", "—", "—", "—", "—", "—", "—", "—", "—"];
+    // Logical Setting order in protocol.rs: Gain, Filter, Balance, Keys, Brightness, Saver, Orientation, Idle, Font.
+    property <[int]> field-order: [0, 1, 3, 8, 2, 4, 5, 6, 7];
+    callback adjust(int, int);
+    callback interaction();
+    out property <length> panel-offset: root.height + gap;
+    out property <bool> hovered: touch.has-hover;
+    out property <bool> pressed: touch.pressed;
+    changed hovered => { root.interaction(); }
+    changed pressed => { root.interaction(); }
+    property <float> reveal: expanded ? 1 : 0;
+    animate reveal { duration: 100ms; easing: cubic-bezier(0, 0, 0, 1); }
+    Rectangle {
+        width: root.width; height: root.content-height; y: root.reveal * 12px;
+        opacity: root.reveal; border-radius: 8px; clip: true; background: #1b1b1b;
+        for label[index] in ["GAIN LEVEL", "PCM FILTER", "KEY MODE", "SET FONT", "BALANCE", "BRIGHTNESS", "SCREENSAVER", "ORIENTATION", "IDLE TIME"] : Card {
+            x: root.inset + mod(index, 2) * (root.column-width + root.gap);
+            y: root.inset + floor(index / 2) * (root.card-height + root.gap);
+            width: index == 8 ? root.width - 2 * root.inset : root.column-width;
+            height: root.card-height;
+            label: label; value: root.values[root.field-order[index]];
+        }
+        // One input surface tracks the whole settings panel, including its gaps.
+        // Card hit regions use the same logical dimensions as the visible grid.
+        touch := TouchArea {
+            enabled: root.expanded;
+            pointer-event(event) => {
+                if event.kind == PointerEventKind.down && event.button == PointerEventButton.left && root.connected {
+                    let x = self.mouse-x - root.inset;
+                    let y = self.mouse-y - root.inset;
+                    let row = floor(y / (root.card-height + root.gap));
+                    let column = row == 4 ? 0 : floor(x / (root.column-width + root.gap));
+                    let local-x = x - column * (root.column-width + root.gap);
+                    let card-width = row == 4 ? root.width - 2 * root.inset : root.column-width;
+                    if x >= 0px && x < root.width - 2 * root.inset && y >= 0px && row < 5
+                        && y - row * (root.card-height + root.gap) < root.card-height && local-x < card-width {
+                        root.adjust(root.field-order[row * 2 + column], local-x < card-width / 2 ? -1 : 1);
+                        root.interaction();
+                    }
+                }
+            }
+        }
+    }
+}
+
+export component VolumePanel inherits Window {
+    // Untranslated: platform.rs treats this title as the overlay flyout.
+    title: "ONIX DAC Control";
+    width: root.notice == "" ? 192px : max(192px, notice-text.preferred-width + 82px);
+    height: 72px;
+    no-frame: true; always-on-top: true; background: transparent;
+    default-font-family: "Roboto";
+    in property <bool> appearing: false;
+    in property <bool> expanded: false;
+    in property <bool> connected: false;
+    in property <string> notice: "";
+    out property <length> panel-width: root.width;
+    in-out property <int> volume: 0;
+    out property <bool> dragging: track.pressed;
+    out property <bool> hovered: mouse.has-hover || brand-touch.has-hover || track.has-hover;
+    changed hovered => { root.interaction(); }
+    changed dragging => { root.interaction(); }
+    callback toggle();
+    callback set-volume(int);
+    callback interaction();
+    callback quit();
+    callback preferences();
+    callback about();
+    property <float> travel: appearing ? 0 : 24;
+    property <float> alpha: appearing ? 1 : 0;
+    animate travel { duration: 200ms; easing: cubic-bezier(0, 0, 0, 1); }
+    animate alpha { duration: 100ms; }
+    Rectangle {
+        width: root.width; height: 48px; y: root.travel * 1px;
+        opacity: root.alpha; border-radius: 10px; clip: true; background: #1b1b1b;
+        mouse := TouchArea { }
+        Rectangle {
+            x: 8px; y: 8px; width: 50px; height: 32px; border-radius: 5px;
+            border-width: 1px; border-color: #d7b56d;
+            background: root.expanded ? #d7b56d : brand-touch.has-hover ? #2c2924 : #232221;
+            Text { text: "ONIX"; font-size: 12px; font-weight: 700; letter-spacing: 0.3px;
+                color: root.expanded ? #1b1b1b : #d7b56d;
+                horizontal-alignment: center; vertical-alignment: center;
+            }
+            brand-touch := TouchArea {
+                pointer-event(event) => {
+                    if event.kind == PointerEventKind.down && event.button == PointerEventButton.left { root.toggle(); }
+                }
+            }
+        }
+        track := TouchArea {
+            x: 66px; y: 7px; width: 78px; height: 34px; enabled: root.connected && root.notice == "";
+            visible: root.notice == "";
+            function update() {
+                root.volume = round(clamp((self.mouse-x - 4px) / 70px, 0, 1) * 99);
+                root.set-volume(root.volume); root.interaction();
+            }
+            pointer-event(event) => {
+                if event.kind == PointerEventKind.down && event.button == PointerEventButton.left { self.update(); }
+                if event.kind == PointerEventKind.up { root.interaction(); }
+            }
+            moved => { if self.pressed { self.update(); } }
+            Rectangle { x: 4px; y: 15px; width: 70px; height: 4px; border-radius: 2px; background: #454340; }
+            Rectangle { x: 4px; y: 15px; width: clamp(root.volume, 0, 99) / 99 * 70px; height: 4px; border-radius: 2px; background: #d7b56d; }
+            Rectangle { x: 0.5px + clamp(root.volume, 0, 99) / 99 * 70px; y: 13.5px; width: 7px; height: 7px; border-radius: 3.5px; background: #d7b56d; }
+        }
+        Text { x: 149px; width: 35px; height: 48px; text: root.connected ? root.volume : "—";
+            visible: root.notice == "";
+            font-size: 14px; font-weight: 600; color: #f4f4f2; horizontal-alignment: center; vertical-alignment: center;
+        }
+        notice-text := Text { x: 66px; width: root.width - 74px; height: 48px; text: root.notice;
+            visible: root.notice != ""; font-size: 13px; font-weight: 600; color: #f4f4f2;
+            horizontal-alignment: center; vertical-alignment: center;
+        }
+        ContextMenuArea {
+            Menu { 
+                MenuItem { title: @tr("Settings"); activated => { root.preferences(); } }
+                MenuItem { title: @tr("About"); activated => { root.about(); } }
+                MenuItem { title: @tr("Exit"); activated => { root.quit(); } }
+            }
+        }
+    }
+}
+
+export component OnixTray inherits SystemTrayIcon {
+    icon: @image-url("icon.png");
+    in property <string> status: "Connecting…";
+    in property <string> shortcuts: "Hotkeys: connecting…";
+    in property <string> startup-status: "Start at sign-in";
+    callback open-panel();
+    callback preferences();
+    callback about();
+    callback quit();
+    clicked => { root.open-panel(); }
+    Menu {
+        MenuItem { title: @tr("Open ONIX"); activated => { root.open-panel(); } }
+        MenuItem { title: @tr("Settings"); activated => { root.preferences(); } }
+        MenuSeparator { }
+        MenuItem { title: @tr("About"); activated => { root.about(); } }
+        MenuItem { title: @tr("Exit"); activated => { root.quit(); } }
+    }
+}
+
+component OnixButton inherits Rectangle {
+    in property <string> text;
+    in property <bool> primary: false;
+    in property <bool> enabled: true;
+    in property <length> text-size: 15px;
+    callback clicked();
+    min-width: 96px; height: 36px;
+    opacity: root.enabled ? 1 : 0.45;
+    border-width: 1px; border-radius: 5px;
+    border-color: root.primary ? #d7b56d : #5b5039;
+    background: touch.pressed ? #c59f51 : touch.has-hover ? #29251e : root.primary ? #d7b56d : #1b1a18;
+    Text { text: root.text; color: root.primary && !touch.has-hover && !touch.pressed ? #151411 : #f1eee7;
+        font-size: root.text-size; font-weight: 650; horizontal-alignment: center; vertical-alignment: center; }
+    touch := TouchArea { enabled: root.enabled; mouse-cursor: pointer; clicked => { root.clicked(); } }
+}
+
+component HotkeyPairRow inherits HorizontalBox {
+    in property <string> label;
+    in property <string> previous-binding;
+    in property <string> next-binding;
+    in property <int> previous-index;
+    in property <int> next-index;
+    in property <int> recording: -1;
+    callback record(int); callback clear(int);
+    height: 36px; padding: 0px; spacing: 6px;
+    Text { text: root.label; min-width: 148px; color: #f4f1ea; font-size: 15px; font-weight: 650; vertical-alignment: center; }
+    OnixButton {
+        horizontal-stretch: 1; text-size: 14px; primary: root.recording == root.previous-index;
+        text: root.recording == root.previous-index ? @tr("Press shortcut…") : root.previous-binding;
+        clicked => { root.record(root.previous-index); }
+    }
+    OnixButton { min-width: 64px; text: @tr("Remove"); text-size: 13px; clicked => { root.clear(root.previous-index); } }
+    OnixButton {
+        horizontal-stretch: 1; text-size: 14px; primary: root.recording == root.next-index;
+        text: root.recording == root.next-index ? @tr("Press shortcut…") : root.next-binding;
+        clicked => { root.record(root.next-index); }
+    }
+    OnixButton { min-width: 64px; text: @tr("Remove"); text-size: 13px; clicked => { root.clear(root.next-index); } }
+}
+
+component OnixSettingRow inherits Rectangle {
+    in property <string> title;
+    in property <string> description;
+    in property <string> value;
+    callback clicked();
+    height: 68px; border-width: 1px; border-radius: 6px;
+    border-color: touch.has-hover ? #d7b56d : #403825;
+    background: touch.pressed ? #2d281f : touch.has-hover ? #211e19 : #1a1917;
+    Rectangle { x: 0; y: 0; width: 3px; height: parent.height; border-radius: 2px; background: #d7b56d; }
+    Text { x: 14px; y: 10px; width: parent.width - 128px; height: 23px; text: root.title;
+        color: #f4f1ea; font-size: 16px; font-weight: 650; vertical-alignment: center; }
+    Text { x: 14px; y: 35px; width: parent.width - 128px; height: 21px; text: root.description;
+        color: #b8b0a3; font-size: 13.5px; font-weight: 500; vertical-alignment: center; }
+    Text { x: parent.width - 112px; y: 0; width: 98px; height: parent.height; text: root.value + "  ›";
+        color: #d7b56d; font-size: 15px; font-weight: 650; horizontal-alignment: right; vertical-alignment: center; }
+    touch := TouchArea { mouse-cursor: pointer; clicked => { root.clicked(); } }
+}
+
+component OnixWindowHeader inherits Rectangle {
+    in property <string> title;
+    in property <string> subtitle;
+    height: 52px;
+    Text { x: 0; y: 0; width: parent.width; height: 29px; text: root.title; color: #f4f1ea;
+        font-size: 23px; font-weight: 700; horizontal-alignment: center; vertical-alignment: center; }
+    Text { x: 0; y: 30px; width: parent.width; height: 18px; text: root.subtitle; color: #b8b0a3;
+        font-size: 14px; font-weight: 500; horizontal-alignment: center; vertical-alignment: center; }
+    Rectangle { x: parent.width / 2 - 30px; y: 51px; width: 60px; height: 1px; background: #d7b56d; }
+}
+
+export component AboutWindow inherits Window {
+    title: @tr("About ONIX DAC Control"); icon: @image-url("icon-small.svg");
+    width: 500px; height: 274px; background: #151411;
+    default-font-family: "Roboto";
+    default-font-size: 17px; default-font-weight: 500;
+    in property <string> version: "";
+    Rectangle {
+        background: #151411;
+        VerticalBox {
+            padding: 22px; spacing: 16px;
+            OnixWindowHeader { title: "ONIX DAC Control"; subtitle: @tr("PC control for ONIX Alpha XI1"); }
+            HorizontalBox {
+                alignment: center; padding: 0;
+                Rectangle {
+                    width: 240px; height: 34px; clip: true;
+                    Image {
+                        x: 0; y: 0; width: 240px; height: 34px;
+                        source: @image-url("github-badge.svg");
+                        image-fit: fill;
+                    }
+                    TouchArea { mouse-cursor: pointer; clicked => { Platform.open-url("https://github.com/romanio427"); } }
+                }
+            }
+            HorizontalBox {
+                alignment: center; spacing: 8px; padding: 0;
+                Rectangle {
+                    width: 150px; height: 38px; clip: true;
+                    Image { width: 150px; height: 38px; source: @image-url("ko-fi-buy-me-coffee.png"); image-fit: fill; }
+                    TouchArea { mouse-cursor: pointer; clicked => { Platform.open-url("https://ko-fi.com/romanio427"); } }
+                }
+                Rectangle {
+                    width: 105px; height: 38px; clip: true;
+                    Image { width: 105px; height: 38px; source: @image-url("liberapay-donate.svg"); image-fit: fill; }
+                    TouchArea { mouse-cursor: pointer; clicked => { Platform.open-url("https://liberapay.com/romanio427"); } }
+                }
+                Rectangle {
+                    width: 170px; height: 38px; clip: true;
+                    Image { width: 170px; height: 38px; source: @image-url("crypto-badge.svg"); image-fit: fill; }
+                    Image { x: 4px; y: 2px; width: 34px; height: 34px; source: @image-url("crypto-site-logo.png"); image-fit: contain; }
+                    TouchArea { mouse-cursor: pointer; clicked => { Platform.open-url("https://romanio427.github.io/"); } }
+                }
+            }
+            VerticalLayout {
+                spacing: 4px;
+                Text { text: @tr("Version {}", root.version); color: #d6d0c5; font-size: 15px; font-weight: 650; horizontal-alignment: center; }
+                Text { text: @tr("MIT License") + " · © 2026 romanio427"; color: #aaa49a; font-size: 14px; font-weight: 500; horizontal-alignment: center; }
+            }
+        }
+    }
+}
+
+export component HotkeyWindow inherits Window {
+    title: @tr("Keyboard shortcuts"); icon: @image-url("icon-small.svg");
+    width: 900px; height: 720px; background: #151411;
+    default-font-family: "Roboto";
+    default-font-size: 17px; default-font-weight: 500;
+    in property <[string]> bindings: ["—", "—", "—", "—", "—", "—", "—", "—", "—", "—", "—", "—", "—", "—", "—", "—", "—", "—", "—", "—"];
+    in-out property <int> recording: -1;
+    in property <string> message: "";
+    callback record(int); callback clear(int); callback defaults(); callback save(); callback cancel();
+    Rectangle {
+        background: #151411;
+        VerticalBox {
+            padding: 18px; spacing: 3px;
+            OnixWindowHeader { title: @tr("Keyboard shortcuts"); subtitle: @tr("Control ONIX from the keyboard"); }
+            Rectangle {
+                height: 18px;
+                Text { x: 0px; width: parent.width; text: @tr("VOLUME"); color: #d7b56d; font-size: 13px; font-weight: 700; letter-spacing: 0.6px; horizontal-alignment: left; vertical-alignment: center; }
+            }
+            HorizontalBox {
+                height: 18px; padding: 0px; spacing: 6px;
+                Rectangle { width: 148px; horizontal-stretch: 0; }
+                Text { horizontal-stretch: 1; text: @tr("← QUIETER"); color: #aaa49a; font-size: 12.5px; font-weight: 700; horizontal-alignment: center; vertical-alignment: center; }
+                Rectangle { width: 64px; horizontal-stretch: 0; }
+                Text { horizontal-stretch: 1; text: @tr("LOUDER →"); color: #aaa49a; font-size: 12.5px; font-weight: 700; horizontal-alignment: center; vertical-alignment: center; }
+                Rectangle { width: 64px; horizontal-stretch: 0; }
+            }
+            HotkeyPairRow { label: @tr("Volume"); previous-index: 1; next-index: 0; previous-binding: root.bindings[1]; next-binding: root.bindings[0]; recording: root.recording; record(index) => { root.record(index); } clear(index) => { root.clear(index); } }
+            Rectangle {
+                height: 24px;
+                Text { x: 0px; y: 6px; width: parent.width; height: 18px; text: @tr("DEVICE SETTINGS"); color: #d7b56d; font-size: 13px; font-weight: 700; letter-spacing: 0.6px; horizontal-alignment: left; vertical-alignment: center; }
+            }
+            HorizontalBox {
+                height: 18px; padding: 0px; spacing: 6px;
+                Rectangle { width: 148px; horizontal-stretch: 0; }
+                Text { horizontal-stretch: 1; text: @tr("← BACK"); color: #aaa49a; font-size: 12.5px; font-weight: 700; horizontal-alignment: center; vertical-alignment: center; }
+                Rectangle { width: 64px; horizontal-stretch: 0; }
+                Text { horizontal-stretch: 1; text: @tr("FORWARD →"); color: #aaa49a; font-size: 12.5px; font-weight: 700; horizontal-alignment: center; vertical-alignment: center; }
+                Rectangle { width: 64px; horizontal-stretch: 0; }
+            }
+            for label[index] in [@tr("Gain mode"), @tr("Digital filter"), @tr("Balance"), @tr("Button mode"), @tr("Screen brightness"), @tr("Screensaver delay"), @tr("Screen rotation"), @tr("Screen timeout"), @tr("Display font")] : HotkeyPairRow {
+                label: label; previous-index: 2 + index * 2; next-index: 3 + index * 2;
+                previous-binding: root.bindings[2 + index * 2]; next-binding: root.bindings[3 + index * 2]; recording: root.recording;
+                record(binding-index) => { root.record(binding-index); } clear(binding-index) => { root.clear(binding-index); }
+            }
+            VerticalBox {
+                height: 132px; vertical-stretch: 0; padding: 0px; spacing: 0px;
+                Rectangle { height: 10px; }
+                Text { text: root.message; wrap: word-wrap; height: 72px; color: #b8b0a3; font-size: 14px; font-weight: 500; }
+                Rectangle { height: 14px; }
+                HorizontalBox {
+                    height: 36px; padding: 0px; spacing: 8px;
+                    OnixButton { min-width: 116px; text: @tr("Defaults"); clicked => { root.defaults(); } }
+                    Rectangle { horizontal-stretch: 1; }
+                    OnixButton { text: @tr("Cancel"); clicked => { root.cancel(); } }
+                    OnixButton { text: @tr("Save"); primary: true; enabled: root.recording < 0; clicked => { root.save(); } }
+                }
+            }
+        }
+    }
+}
+
+export component PreferencesWindow inherits Window {
+    title: @tr("ONIX Settings"); icon: @image-url("icon-small.svg");
+    width: 470px; height: root.device-access-visible ? 495px : 415px; background: #151411;
+    default-font-family: "Roboto";
+    default-font-size: 17px; default-font-weight: 500;
+    in property <string> startup-title: "";
+    in property <string> language-title: "";
+    in property <string> hotkeys-title: "";
+    in property <bool> device-access-visible: false;
+    callback hotkeys(); callback toggle-startup(); callback toggle-language(); callback configure-access(); callback dismiss();
+    Rectangle {
+        background: #151411;
+        VerticalBox {
+            padding: 20px; spacing: 10px;
+            OnixWindowHeader { title: @tr("Settings"); subtitle: @tr("Main application options"); }
+            Text { text: @tr("STARTUP"); color: #d7b56d; font-size: 13px; font-weight: 700; letter-spacing: 0.6px; }
+            OnixSettingRow { title: @tr("Open automatically"); description: @tr("Starts in the background when you sign in"); value: root.startup-title; clicked => { root.toggle-startup(); } }
+            Text { text: @tr("CONTROL"); color: #d7b56d; font-size: 13px; font-weight: 700; letter-spacing: 0.6px; }
+            OnixSettingRow { title: @tr("Keyboard shortcuts"); description: @tr("Control ONIX from the keyboard"); value: root.hotkeys-title; clicked => { root.hotkeys(); } }
+            if (root.device-access-visible) : OnixSettingRow { title: @tr("Device access"); description: @tr("Configure WinUSB for XI1 controls"); value: @tr("Configure"); clicked => { root.configure-access(); } }
+            Text { text: @tr("INTERFACE"); color: #d7b56d; font-size: 13px; font-weight: 700; letter-spacing: 0.6px; }
+            OnixSettingRow { title: @tr("Application language"); description: @tr("Changes text in windows and menus"); value: root.language-title; clicked => { root.toggle-language(); } }
+        }
+    }
+}

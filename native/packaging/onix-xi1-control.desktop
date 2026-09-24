@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=ONIX DAC Control
+Comment=PC control for the ONIX Alpha XI1
+Exec=onix-xi1-pc
+TryExec=onix-xi1-pc
+Icon=io.github.onix-xi1-control
+Terminal=false
+Categories=AudioVideo;Audio;Utility;

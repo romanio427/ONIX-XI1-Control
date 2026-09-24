@@ -1,0 +1,250 @@
+msgid ""
+msgstr ""
+"Content-Type: text/plain; charset=UTF-8\n"
+"Language: ru\n"
+
+msgid "Hotkeys…"
+msgstr "Горячие клавиши…"
+
+msgid "Settings…"
+msgstr "Настройки…"
+
+msgid "ONIX Settings"
+msgstr "Настройки ONIX"
+
+msgid "Settings"
+msgstr "Настройки"
+
+msgid "Application behavior"
+msgstr "Поведение приложения"
+
+msgid "AUTOSTART"
+msgstr "АВТОЗАГРУЗКА"
+
+msgid "CONTROLS"
+msgstr "УПРАВЛЕНИЕ"
+
+msgid "INTERFACE"
+msgstr "ИНТЕРФЕЙС"
+
+msgid "Start at sign-in"
+msgstr "Запуск при входе"
+
+msgid "Tray icon appears when you plug in the XI1"
+msgstr "Значок в трее появляется, когда подключаешь XI1"
+
+msgid "Hotkeys"
+msgstr "Горячие клавиши"
+
+msgid "Shortcuts for the XI1"
+msgstr "Сочетания клавиш для XI1"
+
+msgid "Language"
+msgstr "Язык"
+
+msgid "Russian or English"
+msgstr "Русский или английский"
+
+msgid "About"
+msgstr "О программе"
+
+msgid "Exit"
+msgstr "Выход"
+
+msgid "Open ONIX"
+msgstr "Открыть ONIX"
+
+msgid "About ONIX DAC Control"
+msgstr "О программе ONIX DAC Control"
+
+msgid "PC control for ONIX Alpha XI1"
+msgstr "Аппаратное управление ONIX Alpha XI1"
+
+msgid "Version {}"
+msgstr "Версия {}"
+
+msgid "MIT License"
+msgstr "Лицензия MIT"
+
+msgid "ONIX Hotkeys"
+msgstr "Горячие клавиши ONIX"
+
+msgid "One key or a two-key combination"
+msgstr "Одна клавиша или сочетание из двух"
+
+msgid "Volume up"
+msgstr "Громче"
+
+msgid "Volume down"
+msgstr "Тише"
+
+msgid "Press shortcut…"
+msgstr "Нажмите сочетание…"
+
+msgid "Remove"
+msgstr "Убрать"
+
+msgid "Defaults"
+msgstr "Стандартные"
+
+msgid "Cancel"
+msgstr "Отмена"
+
+msgid "Save"
+msgstr "Сохранить"
+
+msgid "Main application options"
+msgstr "Основные параметры приложения"
+
+msgid "STARTUP"
+msgstr "ЗАПУСК"
+
+msgid "Open automatically"
+msgstr "Запускать автоматически"
+
+msgid "Starts in the background when you sign in"
+msgstr "Запускается в фоне при входе в систему"
+
+msgid "CONTROL"
+msgstr "УПРАВЛЕНИЕ"
+
+msgid "Keyboard shortcuts"
+msgstr "Горячие клавиши"
+
+msgid "Control volume and XI1 settings from the keyboard"
+msgstr "Управление громкостью и настройками XI1 с клавиатуры"
+
+msgid "Control XI1 from the keyboard"
+msgstr "Настройка клавиш для управления ONIX"
+
+msgid "Application language"
+msgstr "Язык приложения"
+
+msgid "Changes text in windows and menus"
+msgstr "Меняет язык окон и меню"
+
+msgid "Assign one key to move each setting forward"
+msgstr "Отдельная клавиша для переключения каждого параметра"
+
+msgid "Control volume and every XI1 setting from the keyboard"
+msgstr "Громкость и все параметры XI1 с клавиатуры"
+
+msgid "Control ONIX from the keyboard"
+msgstr "Управление ONIX с клавиатуры"
+
+msgid "Device access"
+msgstr "Доступ к устройству"
+
+msgid "Configure WinUSB for XI1 controls"
+msgstr "Настройка управления XI1 через WinUSB"
+
+msgid "Configure"
+msgstr "Настроить"
+
+msgid "VOLUME"
+msgstr "ГРОМКОСТЬ"
+
+msgid "Increase volume"
+msgstr "Увеличить громкость"
+
+msgid "Decrease volume"
+msgstr "Уменьшить громкость"
+
+msgid "Increase"
+msgstr "Громче"
+
+msgid "Decrease"
+msgstr "Тише"
+
+msgid "Previous"
+msgstr "Предыдущее"
+
+msgid "Next"
+msgstr "Следующее"
+
+msgid "Volume"
+msgstr "Громкость"
+
+msgid "← PREVIOUS"
+msgstr "← ПРЕДЫДУЩЕЕ"
+
+msgid "NEXT →"
+msgstr "СЛЕДУЮЩЕЕ →"
+
+msgid "← QUIETER"
+msgstr "← ТИШЕ"
+
+msgid "LOUDER →"
+msgstr "ГРОМЧЕ →"
+
+msgid "← BACK"
+msgstr "← НАЗАД"
+
+msgid "FORWARD →"
+msgstr "ВПЕРЁД →"
+
+msgid "Press keys…"
+msgstr "Нажмите клавиши…"
+
+msgid "DEVICE SETTINGS"
+msgstr "НАСТРОЙКИ УСТРОЙСТВА"
+
+msgid "Gain mode"
+msgstr "Режим усиления"
+
+msgid "Digital filter"
+msgstr "Цифровой фильтр"
+
+msgid "Balance"
+msgstr "Баланс"
+
+msgid "Button mode"
+msgstr "Режим кнопок"
+
+msgid "Screen brightness"
+msgstr "Яркость экрана"
+
+msgid "Screensaver delay"
+msgstr "Задержка заставки"
+
+msgid "Screen rotation"
+msgstr "Поворот экрана"
+
+msgid "Screen timeout"
+msgstr "Отключение экрана"
+
+msgid "Display font"
+msgstr "Шрифт экрана"
+
+msgid "You may assign only one direction; values always wrap around. Each binding can be one key or a two-key combination."
+msgstr "Можно назначить только одно направление — значения всё равно идут по кругу. Каждый бинд может быть одной клавишей или сочетанием из двух."
+
+msgid "Assign either direction or both — values always wrap around. A binding can be one key or a two-key combination."
+msgstr "Можно назначить одно направление или оба — значения всегда идут по кругу. Бинд может быть одной клавишей или сочетанием из двух."
+
+msgid "GAIN"
+msgstr "УСИЛЕНИЕ"
+
+msgid "FILTER"
+msgstr "ФИЛЬТР"
+
+msgid "BUTTONS"
+msgstr "КНОПКИ"
+
+msgid "FONT"
+msgstr "ШРИФТ"
+
+msgid "BALANCE"
+msgstr "БАЛАНС"
+
+msgid "BRIGHTNESS"
+msgstr "ЯРКОСТЬ"
+
+msgid "SCREENSAVER"
+msgstr "ЗАСТАВКА"
+
+msgid "ROTATION"
+msgstr "ПОВОРОТ"
+
+msgid "SCREEN OFF"
+msgstr "ЭКРАН ВЫКЛ."
