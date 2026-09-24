@@ -53,6 +53,10 @@ pub fn prepare_gui(args: &[String]) -> Result<Option<Gui>, Box<dyn std::error::E
         crate::winusb_setup::install_cli(true)?;
         return Ok(None);
     }
+    #[cfg(windows)]
+    if args.iter().any(|s| s == "--driver-status") {
+        std::process::exit(if crate::winusb_setup::ready() { 0 } else { 2 });
+    }
     if args.iter().any(|s| s == "--device-connected") && usb::present() != Ok(true) {
         return Ok(None);
     }

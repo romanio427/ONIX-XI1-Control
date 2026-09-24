@@ -126,9 +126,9 @@ Report problems through [GitHub Issues](https://github.com/romanio427/ONIX-XI1-C
 If you would like to support development, the same options are available in the app's About window:
 
 <p align="center">
-  <a href="https://ko-fi.com/romanio427"><img src="native/ui/ko-fi-readme.png" height="38" alt="Support on Ko-fi"></a>&nbsp;&nbsp;&nbsp;
-  <a href="https://liberapay.com/romanio427"><img src="native/ui/liberapay-readme.png" height="38" alt="Donate on Liberapay"></a>&nbsp;&nbsp;&nbsp;
-  <a href="https://romanio427.github.io/"><img src="native/ui/crypto-badge-readme.png" height="38" alt="Send me crypto"></a>
+  <a href="https://ko-fi.com/romanio427"><img src="native/ui/ko-fi-readme.png" width="170" height="38" alt="Support on Ko-fi"></a><br>
+  <a href="https://liberapay.com/romanio427"><img src="native/ui/liberapay-readme.png" width="170" height="38" alt="Donate on Liberapay"></a><br>
+  <a href="https://romanio427.github.io/"><img src="native/ui/crypto-badge-readme.png" width="170" height="38" alt="Send me crypto"></a>
 </p>
 
 ## License
