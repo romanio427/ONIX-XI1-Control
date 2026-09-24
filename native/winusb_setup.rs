@@ -3,6 +3,9 @@
 
 use crate::language;
 use std::path::PathBuf;
+use std::sync::atomic::{AtomicBool, Ordering};
+
+static INSTALLING: AtomicBool = AtomicBool::new(false);
 
 fn skipped_path() -> Option<PathBuf> {
     crate::instance::data_dir()
@@ -174,6 +177,9 @@ fn install_now() -> Result<(), String> {
         CreateListOptions, InstallDriverOptions, PrepareDriverOptions, create_list, install_driver,
         prepare_driver,
     };
+    if ready() {
+        return Ok(());
+    }
     crate::instance::debug_log("winusb install begin");
     let devices = create_list(CreateListOptions {
         list_all: true,
@@ -196,6 +202,13 @@ fn install_now() -> Result<(), String> {
             )
             .to_string()
         })?;
+    if device
+        .driver
+        .as_deref()
+        .is_some_and(|driver| driver.eq_ignore_ascii_case("WinUSB"))
+    {
+        return Ok(());
+    }
     let dir = std::env::temp_dir().join(format!("onix-xi1-winusb-{}", std::process::id()));
     std::fs::create_dir_all(&dir).map_err(|error| error.to_string())?;
     let path = dir
@@ -235,6 +248,9 @@ fn install_now() -> Result<(), String> {
 
 pub fn install_cli(quiet: bool) -> Result<(), Box<dyn std::error::Error>> {
     use windows_sys::Win32::UI::WindowsAndMessaging::{MB_ICONINFORMATION, MB_ICONWARNING, MB_OK};
+    if ready() {
+        return Ok(());
+    }
     if !is_admin() {
         if quiet {
             return Err(language::text(
@@ -286,9 +302,13 @@ pub fn configure_again() {
 }
 
 fn offer(force: bool) {
-    use windows_sys::Win32::UI::WindowsAndMessaging::{
-        IDYES, MB_ICONINFORMATION, MB_ICONWARNING, MB_OK, MB_YESNO,
-    };
+    use windows_sys::Win32::UI::WindowsAndMessaging::{IDYES, MB_ICONINFORMATION, MB_OK, MB_YESNO};
+    if INSTALLING.load(Ordering::Acquire) {
+        return;
+    }
+    if ready() {
+        return;
+    }
     if force && crate::usb::present() != Ok(true) {
         message(
             language::text(
@@ -313,15 +333,28 @@ fn offer(force: bool) {
         mark_skipped();
         return;
     }
-    match if is_admin() {
-        install_now().map(|()| 0)
-    } else {
-        elevate(true)
-    } {
+    if INSTALLING.swap(true, Ordering::AcqRel) {
+        return;
+    }
+    std::thread::spawn(|| {
+        let result = if is_admin() {
+            install_now().map(|()| 0)
+        } else {
+            elevate(true)
+        };
+        let _ = slint::invoke_from_event_loop(move || finish_offer(result));
+    });
+}
+
+fn finish_offer(result: Result<i32, String>) {
+    use windows_sys::Win32::UI::WindowsAndMessaging::{MB_ICONINFORMATION, MB_ICONWARNING, MB_OK};
+    INSTALLING.store(false, Ordering::Release);
+    match result {
         Ok(0) => {
             if let Some(path) = skipped_path() {
                 let _ = std::fs::remove_file(path);
             }
+            crate::with_app(|app| app.preferences.set_device_access_visible(!ready()));
             message(
                 language::text(
                     "Доступ к управлению ONIX XI1 настроен. Аудиодрайвер не изменён.",

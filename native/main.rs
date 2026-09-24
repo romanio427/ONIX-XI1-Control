@@ -501,6 +501,10 @@ impl App {
         }
         self.panel.set_connected(reply.settings.is_some());
         self.settings.set_connected(reply.settings.is_some());
+        #[cfg(windows)]
+        self.preferences.set_device_access_visible(
+            reply.settings.is_none() && reply.winusb_required && !winusb_setup::ready(),
+        );
         self.tray.set_status(if reply.settings.is_some() {
             language::xi1_connected().into()
         } else {
@@ -818,7 +822,8 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
     app.refresh_language_ui();
     #[cfg(windows)]
     if !demo {
-        app.preferences.set_device_access_visible(true);
+        app.preferences
+            .set_device_access_visible(winusb_setup::needed());
         winusb_setup::offer_if_needed();
         app.refresh_language_ui();
     }

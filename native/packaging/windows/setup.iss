@@ -111,6 +111,9 @@ begin
   if Exec(AppExe, '--device-presence', '', SW_HIDE,
       ewWaitUntilTerminated, ResultCode) and (ResultCode = 0) then
   begin
+    if Exec(AppExe, '--driver-status', '', SW_HIDE,
+        ewWaitUntilTerminated, ResultCode) and (ResultCode = 0) then
+      Exit;
     WizardForm.StatusLabel.Caption := CustomMessage('ConfigureAccess');
     if (not Exec(AppExe, '--install-driver-quiet', '', SW_HIDE,
         ewWaitUntilTerminated, ResultCode)) or (ResultCode <> 0) then
