@@ -1,0 +1,335 @@
+name: Package ONIX
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing release tag; leave empty to build the selected branch
+        required: false
+        type: string
+      publish:
+        description: Upload packages to the GitHub release after building
+        required: true
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: package-${{ inputs.tag || github.sha }}
+  cancel-in-progress: false
+
+env:
+  CARGO_TERM_COLOR: always
+  CARGO_INCREMENTAL: 0
+
+jobs:
+  prepare:
+    name: Prepare packages
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ inputs.tag || github.sha }}
+          fetch-depth: 0
+      - name: Validate release request
+        env:
+          RELEASE_TAG: ${{ inputs.tag }}
+          PUBLISH: ${{ inputs.publish }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        run: |
+          if [[ -z "$RELEASE_TAG" ]]; then
+            if [[ "$PUBLISH" == "true" ]]; then
+              echo "Publishing requires an existing release tag" >&2
+              exit 1
+            fi
+            exit 0
+          fi
+          if ! [[ "$RELEASE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "Release tag must use the v1.2.3 format" >&2
+            exit 1
+          fi
+          git show-ref --verify --quiet "refs/tags/$RELEASE_TAG"
+          package_version=$(sed -n 's/^version = "\([^"]*\)"/\1/p' Cargo.toml | head -n1)
+          test "$RELEASE_TAG" = "v$package_version" || {
+            echo "Tag $RELEASE_TAG does not match Cargo.toml version $package_version" >&2
+            exit 1
+          }
+          if [[ "$PUBLISH" == "true" ]]; then
+            git fetch --no-tags origin "refs/heads/$DEFAULT_BRANCH:refs/remotes/origin/$DEFAULT_BRANCH"
+            branch_tip=$(git rev-parse "refs/remotes/origin/$DEFAULT_BRANCH^{commit}")
+            tag_commit=$(git rev-parse HEAD)
+            test "$tag_commit" = "$branch_tip" || {
+              echo "Tag $RELEASE_TAG is not at the current $DEFAULT_BRANCH tip; commit the release changes and create a fresh tag" >&2
+              exit 1
+            }
+          fi
+      - uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87 # stable
+      - name: Generate locked dependency notices
+        run: |
+          curl -fL https://github.com/EmbarkStudios/cargo-about/releases/download/0.9.2/cargo-about-0.9.2-x86_64-unknown-linux-musl.tar.gz -o /tmp/cargo-about.tar.gz
+          echo '9099a59e820c38a68b9d65f300662a567d56562f9a10f6aa4c7e86c17c2566af  /tmp/cargo-about.tar.gz' | sha256sum -c -
+          mkdir /tmp/onix-cargo-about
+          tar -xf /tmp/cargo-about.tar.gz -C /tmp/onix-cargo-about --strip-components=1
+          /tmp/onix-cargo-about/cargo-about generate --locked --fail native/packaging/about.hbs -o THIRD-PARTY-LICENSES.html
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: build-notices
+          path: THIRD-PARTY-LICENSES.html
+          if-no-files-found: error
+
+  package:
+    name: Package ${{ matrix.target }}
+    needs: prepare
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-2025
+            target: x86_64-pc-windows-msvc
+            artifact: release-windows
+          - os: ubuntu-22.04
+            target: x86_64-unknown-linux-gnu
+            artifact: release-linux-x64
+          - os: macos-15-intel
+            target: x86_64-apple-darwin
+            artifact: build-macos-intel
+          - os: macos-15
+            target: aarch64-apple-darwin
+            artifact: build-macos-apple-silicon
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    env:
+      MACOSX_DEPLOYMENT_TARGET: '13.0'
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ inputs.tag || github.sha }}
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+        with:
+          name: build-notices
+          path: notices/
+      - uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87 # stable
+        with:
+          targets: ${{ matrix.target }}
+      - uses: Swatinem/rust-cache@49a0bdc70d2e1b713ca9e2869b211fcce03d3c1c # v2
+      - name: Install Linux packaging dependencies
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y libfontconfig1-dev libxkbcommon-dev libxkbcommon-x11-dev libx11-dev libxcb1-dev libx11-xcb-dev libgl1-mesa-dev libudev-dev rpm
+      - name: Compile native application
+        run: cargo build --release --locked --target ${{ matrix.target }}
+      - name: Compile single-file portable Windows application
+        if: runner.os == 'Windows'
+        env:
+          ONIX_GENERATED_LICENSES: ${{ github.workspace }}/notices/THIRD-PARTY-LICENSES.html
+        run: cargo build --release --locked --target ${{ matrix.target }} --features portable --target-dir portable-target
+      - name: Stage Windows files
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Path package,packages
+          Copy-Item target/${{ matrix.target }}/release/onix-xi1-pc.exe package/
+          Copy-Item portable-target/${{ matrix.target }}/release/onix-xi1-pc.exe packages/ONIX-DAC-Control-windows-x64-portable.exe
+          Copy-Item LICENSE package/
+          Copy-Item native/THIRD_PARTY_NOTICES.md package/
+          Copy-Item native/packaging/LGPL-3.0.txt package/
+          Copy-Item native/packaging/SLINT-LICENSE.md package/
+          Copy-Item notices/THIRD-PARTY-LICENSES.html package/
+      - name: Verify portable Windows imports
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $imports = & llvm-readobj --coff-imports packages/ONIX-DAC-Control-windows-x64-portable.exe
+          if ($LASTEXITCODE -ne 0) { throw 'Cannot inspect Windows imports' }
+          if ($imports -match '(?i)(VCRUNTIME|MSVCP|libgcc|libstdc\+\+|libwinpthread).*\.dll') {
+            throw 'Portable executable depends on a separately installed runtime'
+          }
+      - name: Package Windows Setup
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $version = (cargo metadata --no-deps --format-version 1 | ConvertFrom-Json).packages[0].version.Split('-')[0]
+          $iscc = (Get-Command ISCC.exe -ErrorAction SilentlyContinue).Source
+          if (-not $iscc) { $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" }
+          if (-not (Test-Path -LiteralPath $iscc)) { throw 'Inno Setup compiler is unavailable' }
+          $source = (Resolve-Path package).Path
+          $output = (Resolve-Path packages).Path
+          & $iscc "/DAppVersion=$version" "/DSourceDir=$source" "/DOutputDir=$output" native/packaging/windows/setup.iss
+          if ($LASTEXITCODE -ne 0) { throw 'Could not build Windows Setup' }
+      - name: Package Debian and RPM
+        if: runner.os == 'Linux'
+        run: |
+          mkdir package packages
+          cp target/${{ matrix.target }}/release/onix-xi1-pc LICENSE native/THIRD_PARTY_NOTICES.md package/
+          cp notices/THIRD-PARTY-LICENSES.html native/packaging/SLINT-LICENSE.md package/
+          version=$(cargo metadata --no-deps --format-version 1 | jq -r '.packages[0].version' | sed 's/-/~/')
+          mkdir -p deb/DEBIAN
+          sed "s/__VERSION__/$version/" native/packaging/control > deb/DEBIAN/control
+          install -m755 native/packaging/postinst deb/DEBIAN/postinst
+          install -m755 native/packaging/postrm deb/DEBIAN/postrm
+          install -Dm755 package/onix-xi1-pc deb/usr/bin/onix-xi1-pc
+          install -Dm644 native/packaging/70-onix-xi1.rules deb/usr/lib/udev/rules.d/70-onix-xi1.rules
+          install -Dm644 native/packaging/onix-xi1-control.desktop deb/usr/share/applications/io.github.onix-xi1-control.desktop
+          install -Dm644 native/packaging/io.github.onix-xi1-control.autostart.desktop deb/etc/xdg/autostart/io.github.onix-xi1-control.desktop
+          install -Dm644 native/ui/icon.svg deb/usr/share/icons/hicolor/scalable/apps/io.github.onix-xi1-control.svg
+          install -Dm644 package/LICENSE deb/usr/share/doc/onix-xi1-control/LICENSE
+          install -Dm644 package/THIRD_PARTY_NOTICES.md deb/usr/share/doc/onix-xi1-control/THIRD_PARTY_NOTICES.md
+          install -Dm644 package/THIRD-PARTY-LICENSES.html deb/usr/share/doc/onix-xi1-control/THIRD-PARTY-LICENSES.html
+          install -Dm644 package/SLINT-LICENSE.md deb/usr/share/doc/onix-xi1-control/SLINT-LICENSE.md
+          dpkg-deb --root-owner-group --build deb packages/ONIX-DAC-Control-linux-x64.deb
+          rpm_version=${version%%~*}
+          mkdir -p rpm/BUILD rpm/BUILDROOT rpm/RPMS rpm/SOURCES rpm/SPECS rpm/SRPMS
+          rpmbuild -bb native/packaging/onix-xi1-control.spec \
+            --define "app_version $rpm_version" \
+            --define "project_dir $GITHUB_WORKSPACE" \
+            --define "source_dir $GITHUB_WORKSPACE/package" \
+            --define "_topdir $GITHUB_WORKSPACE/rpm"
+          rpm_file=$(find rpm/RPMS -type f -name '*.rpm' -print -quit)
+          test -n "$rpm_file"
+          cp "$rpm_file" packages/ONIX-DAC-Control-linux-x64.rpm
+          dpkg-deb --info packages/*.deb
+          rpm -qip packages/*.rpm
+          ldd package/onix-xi1-pc
+      - name: Stage macOS executable
+        if: runner.os == 'macOS'
+        run: |
+          mkdir packages
+          cp target/${{ matrix.target }}/release/onix-xi1-pc packages/
+      - name: Write Windows checksums
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          Get-ChildItem packages -File | ForEach-Object {
+            $hash = (Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+            "$hash *$($_.Name)" | Set-Content "$($_.FullName).sha256" -Encoding ascii
+          }
+      - name: Write Linux checksums
+        if: runner.os == 'Linux'
+        run: |
+          for file in packages/*; do
+            name=$(basename "$file")
+            (cd packages && shasum -a 256 "$name" > "$name.sha256")
+          done
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: ${{ matrix.artifact }}
+          path: packages/
+          if-no-files-found: error
+
+  package-macos-universal:
+    name: Package universal macOS DMG
+    needs: package
+    runs-on: macos-15
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ inputs.tag || github.sha }}
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+        with:
+          name: build-notices
+          path: notices/
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+        with:
+          name: build-macos-intel
+          path: slices/intel/
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+        with:
+          name: build-macos-apple-silicon
+          path: slices/apple-silicon/
+      - name: Create universal application and DMG
+        run: |
+          version=$(sed -n 's/^version = "\([^"]*\)"/\1/p' Cargo.toml | head -n1)
+          app='bundle/ONIX DAC Control.app'
+          executable="$app/Contents/MacOS/onix-xi1-pc"
+          mkdir -p "$app/Contents/MacOS" "$app/Contents/Resources" "$app/Contents/Library/LaunchAgents" packages
+          lipo -create slices/intel/onix-xi1-pc slices/apple-silicon/onix-xi1-pc -output "$executable"
+          lipo "$executable" -verify_arch x86_64 arm64
+          cp LICENSE native/THIRD_PARTY_NOTICES.md "$app/Contents/Resources/"
+          cp native/ui/ONIX.icns "$app/Contents/Resources/ONIX.icns"
+          cp notices/THIRD-PARTY-LICENSES.html native/packaging/SLINT-LICENSE.md "$app/Contents/Resources/"
+          sed "s/__VERSION__/$version/g" native/packaging/Info.plist > "$app/Contents/Info.plist"
+          cp native/packaging/io.github.onix-xi1-control.login.plist "$app/Contents/Library/LaunchAgents/"
+          plutil -lint "$app/Contents/Info.plist" "$app/Contents/Library/LaunchAgents/"*.plist
+          codesign --force --deep --sign - "$app"
+          codesign --verify --deep --strict "$app"
+          ln -s /Applications bundle/Applications
+          dmg='ONIX-DAC-Control-macos-universal.dmg'
+          hdiutil create -volname 'ONIX DAC Control' -srcfolder bundle -ov -format UDZO "packages/$dmg"
+          hdiutil verify "packages/$dmg"
+          (cd packages && shasum -a 256 "$dmg" > "$dmg.sha256")
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: release-macos-universal
+          path: packages/
+          if-no-files-found: error
+
+  verify:
+    name: Verify package filenames and checksums
+    needs: [package, package-macos-universal]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+        with:
+          pattern: release-*
+          path: release-assets/
+          merge-multiple: true
+      - name: Check exact output set
+        shell: bash
+        run: |
+          expected=(
+            ONIX-DAC-Control-windows-x64-setup.exe
+            ONIX-DAC-Control-windows-x64-portable.exe
+            ONIX-DAC-Control-linux-x64.deb
+            ONIX-DAC-Control-linux-x64.rpm
+            ONIX-DAC-Control-macos-universal.dmg
+          )
+          for file in "${expected[@]}"; do
+            test -f "release-assets/$file"
+            test -f "release-assets/$file.sha256"
+          done
+          test "$(find release-assets -maxdepth 1 -type f | wc -l)" -eq 10
+          (cd release-assets && sha256sum -c -- *.sha256)
+
+  publish:
+    name: Publish GitHub release
+    if: ${{ inputs.publish }}
+    needs: verify
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+        with:
+          pattern: release-*
+          path: release-assets/
+          merge-multiple: true
+      - name: Verify and publish release files
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ inputs.tag }}
+        run: |
+          expected=(
+            ONIX-DAC-Control-windows-x64-setup.exe
+            ONIX-DAC-Control-windows-x64-portable.exe
+            ONIX-DAC-Control-linux-x64.deb
+            ONIX-DAC-Control-linux-x64.rpm
+            ONIX-DAC-Control-macos-universal.dmg
+          )
+          for file in "${expected[@]}"; do
+            test -f "release-assets/$file"
+            test -f "release-assets/$file.sha256"
+          done
+          assets=()
+          for file in "${expected[@]}"; do
+            assets+=("release-assets/$file")
+          done
+          if gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release upload "$RELEASE_TAG" "${assets[@]}" --clobber --repo "$GITHUB_REPOSITORY"
+          else
+            gh release create "$RELEASE_TAG" "${assets[@]}" --verify-tag --generate-notes --title "ONIX DAC Control $RELEASE_TAG" --repo "$GITHUB_REPOSITORY"
+          fi
