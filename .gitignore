@@ -13,6 +13,7 @@ THIRD-PARTY-LICENSES.html
 .vscode/
 .release-cleanup/
 /docs/media/README.md
+/docs/single-instance-research.md
 /docs/media/global-shortcuts-background.png
 /docs/media/global-shortcuts-background-v4.png
 /docs/media/global-shortcuts-background-v5.png
